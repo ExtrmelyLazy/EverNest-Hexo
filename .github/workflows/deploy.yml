@@ -1,46 +1,46 @@
-name: Deploy Hexo to GitHub Pages
+name: Deploy Hexo Blog
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: write
     
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]  # 尝试不同版本
+
     steps:
-    - name: Checkout source code
+    - name: Checkout
       uses: actions/checkout@v4
       with:
-        submodules: true  
-        token: ${{ secrets.GITHUB_TOKEN }}
+        submodules: recursive
 
-    - name: Setup Node.js
+    - name: Setup Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
     - name: Install dependencies
       run: |
-        npm install
+        rm -rf node_modules
+        rm -f package-lock.json
+        npm install --legacy-peer-deps
 
-    - name: Build with Hexo
+    - name: Build
       run: |
-        npm run build 
+        npx hexo clean
+        npx hexo generate --debug
 
-    - name: Setup Git
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Deploy to GitHub Pages
-      run: |
-        npm run deploy
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./public
+        publish_branch: gh-pages
+        force_orphan: true
