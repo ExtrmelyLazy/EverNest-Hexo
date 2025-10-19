@@ -1,36 +1,72 @@
-name: Deploy Hexo
-
+# GitHub Actions workflow: build Hexo (Butterfly 主题) 并部署到 GitHub Pages
+# 说明：
+# - 默认监听 main 分支的 push；如你的默认分支是 master 或其它，请修改 `on.push.branches`。
+# - 假设你的 Hexo 项目把生成文件放在 public/（Hexo 默认）。如果你的输出目录不同，请修改 publish_dir。
+# - 此示例使用 peaceiris/actions-gh-pages 将 public/ 推到 gh-pages 分支并启用 Pages（GITHUB_TOKEN 自动足够用于同一仓库）。
+# - 如果你的 package.json 中没有 hexo/hexo-cli，请在项目中添加依赖，或取消注释全局安装那一行。
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+
+name: Deploy Hexo (Butterfly)
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+    concurrency:
+      group: hexo-deploy-${{ github.ref }}
+      cancel-in-progress: true
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm install
+      - name: Install dependencies
+        # 使用 package-lock.json 时 prefer npm ci；否则会回退到 npm install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-    - name: Generate
-      run: npx hexo clean && npx hexo generate
+      # 如果你的仓库没有把 hexo-cli/hexo 作为依赖安装到 package.json，可启用下面一行（通常不推荐，优先把 hexo 放入 devDependencies）
+      # - name: Install hexo-cli globally (optional)
+      #   run: npm install -g hexo-cli
 
-    - name: Deploy
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./public
-        publish_branch: gh-pages
+      - name: Build site (generate static files)
+        # 优先使用 package.json 中的 build 或 hexo 的脚本；若没有则尝试 hexo generate
+        run: |
+          if npm run | grep -q ' build'; then
+            npm run build
+          elif npm run | grep -q ' generate'; then
+            npm run generate || npm run gen
+          else
+            # fallback to hexo generate (需要 hexo 已安装)
+            npx hexo generate || hexo generate
+          fi
+
+      - name: Show public files (for debug)
+        run: |
+          echo "---- public directory listing ----"
+          ls -la public || true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          # publish_branch: gh-pages   # 可选：指定发布分支（默认是 gh-pages）
+          # destination_dir: ''        # 可选：在目标分支中使用子目录
+          # enable_commit_signing: false
+
+      - name: Print finished
+        run: echo "Hexo build & deploy finished."
