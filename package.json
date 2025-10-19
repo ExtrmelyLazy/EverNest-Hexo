@@ -8,6 +8,9 @@
     "deploy": "hexo deploy",
     "server": "hexo server"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "hexo": {
     "version": "8.0.0"
   },
@@ -23,5 +26,11 @@
     "hexo-server": "^3.0.0",
     "hexo-theme-butterfly": "^5.5.1",
     "hexo-theme-landscape": "^1.0.0"
+  },
+  "overrides": {
+    "strip-ansi": "6.0.1"
+  },
+  "resolutions": {
+    "strip-ansi": "6.0.1"
   }
 }
